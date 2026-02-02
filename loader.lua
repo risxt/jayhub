@@ -1144,6 +1144,7 @@ local Tabs = {
     Pets = Window:AddTab({ Title = "Pets", Icon = "egg" }),
     Islands = Window:AddTab({ Title = "Islands", Icon = "map" }),
     Upgrades = Window:AddTab({ Title = "Upgrades", Icon = "trending-up" }),
+    Webhook = Window:AddTab({ Title = "Webhook", Icon = "globe" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 
@@ -1385,17 +1386,22 @@ SaveManager:SetFolder("TapSimHub/configs")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
-Tabs.Settings:AddParagraph({ Title = "Webhook", Content = "" })
+Tabs.Settings:AddParagraph({ Title = "Credits", Content = "TapSim Hub v1.3" })
 
-Tabs.Settings:AddToggle("WebhookEnabled", {
-    Title = "Enable Webhook",
+-- ============================================
+-- WEBHOOK TAB
+-- ============================================
+Tabs.Webhook:AddParagraph({ Title = "Discord", Content = "" })
+
+Tabs.Webhook:AddToggle("WebhookEnabled", {
+    Title = "Enable",
     Default = false
 }):OnChanged(function(value)
     _G.WebhookSettings.Enabled = value
 end)
 
-Tabs.Settings:AddInput("WebhookUrl", {
-    Title = "Webhook URL",
+Tabs.Webhook:AddInput("WebhookUrl", {
+    Title = "URL",
     Description = "Use hooks.hyra.io proxy",
     Placeholder = "https://hooks.hyra.io/...",
     Numeric = false,
@@ -1405,15 +1411,13 @@ Tabs.Settings:AddInput("WebhookUrl", {
     end
 })
 
-Tabs.Settings:AddDropdown("WebhookRarity", {
+Tabs.Webhook:AddDropdown("WebhookRarity", {
     Title = "Min Rarity",
     Values = {"Rare", "Epic", "Legendary", "Mythic", "Secret"},
     Default = "Legendary"
 }):OnChanged(function(value)
     _G.WebhookSettings.MinRarity = value
 end)
-
-Tabs.Settings:AddParagraph({ Title = "Credits", Content = "TapSim Hub v1.3" })
 
 -- ============================================
 -- FINISH
