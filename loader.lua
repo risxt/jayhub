@@ -1385,8 +1385,10 @@ local Tabs = {
     Islands = Window:AddTab({ Title = "Islands", Icon = "map" }),
     Upgrades = Window:AddTab({ Title = "Upgrades", Icon = "trending-up" }),
     Webhook = Window:AddTab({ Title = "Webhook", Icon = "globe" }),
+    Performance = Window:AddTab({ Title = "Performance", Icon = "gauge" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
+
 
 -- ============================================
 -- MAIN TAB
@@ -1722,8 +1724,91 @@ Tabs.Webhook:AddButton({
 })
 
 -- ============================================
+-- PERFORMANCE TAB (BLACK EDITION - 25 FPS)
+-- ============================================
+
+-- Siapkan GUI Hitam (Disimpan di PlayerGui biar aman)
+local BlackGui = Instance.new("ScreenGui")
+BlackGui.Name = "BlackScreenOverlay"
+BlackGui.IgnoreGuiInset = true 
+BlackGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+BlackGui.Enabled = false 
+
+local BlackFrame = Instance.new("Frame")
+BlackFrame.Size = UDim2.new(1, 0, 1, 0)
+BlackFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BlackFrame.BorderSizePixel = 0
+BlackFrame.ZIndex = 9999 
+BlackFrame.Parent = BlackGui
+
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, 0, 1, 0)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = "🌙 AFK MODE AKTIF\n(Render 3D Mati - FPS 25)\n\nMatikan Toggle di GUI untuk kembali."
+StatusText.TextColor3 = Color3.fromRGB(150, 150, 150)
+StatusText.TextSize = 20
+StatusText.Font = Enum.Font.GothamBold
+StatusText.Parent = BlackFrame
+
+Tabs.Performance:AddParagraph({ Title = "AFK Mode", Content = "" })
+
+Tabs.Performance:AddToggle("BlackScreenMode", {
+    Title = "Black Screen Mode (AFK)",
+    Description = "Matikan 3D render + FPS 25",
+    Default = false
+}):OnChanged(function(value)
+    local RunService = game:GetService("RunService")
+    BlackGui.Enabled = value
+    RunService:Set3dRenderingEnabled(not value)
+    if value then
+        setfpscap(25)
+    else
+        setfpscap(60)
+    end
+end)
+
+Tabs.Performance:AddParagraph({ Title = "Graphics", Content = "" })
+
+Tabs.Performance:AddButton({
+    Title = "Potato Graphics",
+    Description = "Hapus tekstur -> RAM hemat",
+    Callback = function()
+        local Lighting = game:GetService("Lighting")
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") then
+                v:Destroy()
+            end
+        end
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
+                v.Material = Enum.Material.SmoothPlastic
+                v.Reflectance = 0
+                v.CastShadow = false
+            elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("ParticleEmitter") then
+                v:Destroy()
+            end
+        end
+        Fluent:Notify({ Title = "Potato Mode", Content = "Grafik diturunkan!", Duration = 3 })
+    end
+})
+
+Tabs.Performance:AddButton({
+    Title = "Force Clean RAM",
+    Description = "Buang sampah memory",
+    Callback = function()
+        for i = 1, 10 do
+            collectgarbage("collect")
+        end
+        Fluent:Notify({ Title = "RAM Cleaned", Content = "Memory dibersihkan!", Duration = 3 })
+    end
+})
+
+-- ============================================
 -- FINISH
 -- ============================================
+
 Window:SelectTab(1)
 
 Fluent:Notify({
