@@ -815,110 +815,350 @@ end
 -- Start auto best island loop
 AutoBestIsland.start()
 
--- [[ DISCORD WEBHOOK MODULE ]]
+-- [[ AUTO CRAFT MODULE (FINAL STABLE - STRICT COUNT) ]]
+local AutoCraft = {}
+do
+    local _goldenEnabled = false
+    local _rainbowEnabled = false
+    local _claimEnabled = true
+    local _delay = 0.5
+    local _savedFarmingPos = nil
+    
+    local RS = game:GetService("ReplicatedStorage")
+    local Players = game:GetService("Players")
+    local LP = Players.LocalPlayer
+    
+    local Network, Replication
+    pcall(function()
+        Network = require(RS.Modules.Network)
+        Replication = require(RS.Game.Replication)
+    end)
+    
+    -- Teleport to CFrame
+    local function TeleportTo(cframe)
+        if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            LP.Character.HumanoidRootPart.CFrame = cframe
+        end
+    end
+    
+    -- Find machine part
+    local function FindMachinePart(machineName)
+        local target = workspace:FindFirstChild(machineName, true) or workspace:FindFirstChild(machineName:gsub("Machine", " Machine"), true)
+        if target then
+            if target:IsA("Model") then
+                return target:FindFirstChild("Pad") or target.PrimaryPart or target:FindFirstChildWhichIsA("BasePart")
+            elseif target:IsA("BasePart") then
+                return target
+            end
+        end
+        return nil
+    end
+    
+    -- Check if near any machine
+    local function IsNearMachine()
+        if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then return false end
+        local myPos = LP.Character.HumanoidRootPart.Position
+        local goldenM = FindMachinePart("GoldenMachine")
+        local rainbowM = FindMachinePart("RainbowMachine")
+        if goldenM and (myPos - goldenM.Position).Magnitude < 50 then return true end
+        if rainbowM and (myPos - rainbowM.Position).Magnitude < 50 then return true end
+        return false
+    end
+    
+    -- Auto Claim Rainbow
+    local function CheckAndClaim()
+        if not _claimEnabled or not Replication or not Replication.Data then return end
+        local craftingPets = Replication.Data.CraftingPets
+        if craftingPets and craftingPets.Rainbow then
+            local currentTime = workspace:GetServerTimeNow()
+            for id, data in pairs(craftingPets.Rainbow) do
+                if data.EndTime and (data.EndTime - currentTime) <= 0 then
+                    pcall(function() Network:InvokeServer("ClaimRainbow", id) end)
+                end
+            end
+        end
+    end
+    
+    -- STRICT COUNT: Check if there's at least one group with 5+ pets
+    local function HasCraftableBatch(tier)
+        if not Replication or not Replication.Data or not Replication.Data.Pets then return false end
+        local counts = {}
+        for _, pet in pairs(Replication.Data.Pets) do
+            if not pet.Equipped and not pet.Locked and pet.Tier == tier then
+                counts[pet.Name] = (counts[pet.Name] or 0) + 1
+                if counts[pet.Name] >= 5 then return true end
+            end
+        end
+        return false
+    end
+    
+    -- Craft Process
+    local function CraftProcess()
+        if not Replication or not Replication.Data or not Replication.Data.Pets then return end
+        
+        -- Smart Anchor: Save position only when FAR from machines
+        if not IsNearMachine() and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            _savedFarmingPos = LP.Character.HumanoidRootPart.CFrame
+        end
+        
+        -- GOLDEN: STRICT CHECK FIRST
+        if _goldenEnabled and HasCraftableBatch("Normal") then
+            local machine = FindMachinePart("GoldenMachine")
+            if machine then
+                -- Go to machine
+                if not IsNearMachine() then
+                    print("[AutoCraft] Found 5+ Normal -> Going to Golden Machine")
+                    TeleportTo(machine.CFrame + Vector3.new(0, 3, 0))
+                    task.wait(0.5)
+                end
+                
+                -- Batch craft until empty
+                while _goldenEnabled do
+                    local groups = {}
+                    local batch = nil
+                    
+                    for id, pet in pairs(Replication.Data.Pets) do
+                        if not pet.Equipped and not pet.Locked and pet.Tier == "Normal" then
+                            if not groups[pet.Name] then groups[pet.Name] = {} end
+                            table.insert(groups[pet.Name], id)
+                            if #groups[pet.Name] >= 5 then
+                                batch = {groups[pet.Name][1], groups[pet.Name][2], groups[pet.Name][3], groups[pet.Name][4], groups[pet.Name][5]}
+                                break
+                            end
+                        end
+                    end
+                    
+                    if batch then
+                        Network:InvokeServer("CraftPets", batch)
+                        task.wait(_delay)
+                    else
+                        print("[AutoCraft] Golden done! Returning...")
+                        break
+                    end
+                end
+                
+                if _savedFarmingPos then TeleportTo(_savedFarmingPos) end
+                return
+            end
+        end
+        
+        -- RAINBOW: STRICT CHECK FIRST
+        if _rainbowEnabled then
+            local usedSlots = 0
+            if Replication.Data.CraftingPets and Replication.Data.CraftingPets.Rainbow then
+                for _ in pairs(Replication.Data.CraftingPets.Rainbow) do usedSlots = usedSlots + 1 end
+            end
+            
+            if usedSlots < 3 and HasCraftableBatch("Golden") then
+                local machine = FindMachinePart("RainbowMachine")
+                if machine then
+                    if not IsNearMachine() then
+                        print("[AutoCraft] Found 5+ Golden -> Going to Rainbow Machine")
+                        TeleportTo(machine.CFrame + Vector3.new(0, 3, 0))
+                        task.wait(0.5)
+                    end
+                    
+                    while _rainbowEnabled do
+                        local currSlots = 0
+                        if Replication.Data.CraftingPets and Replication.Data.CraftingPets.Rainbow then
+                            for _ in pairs(Replication.Data.CraftingPets.Rainbow) do currSlots = currSlots + 1 end
+                        end
+                        if currSlots >= 3 then break end
+                        
+                        local groups = {}
+                        local batch = nil
+                        
+                        for id, pet in pairs(Replication.Data.Pets) do
+                            if not pet.Equipped and not pet.Locked and pet.Tier == "Golden" then
+                                if not groups[pet.Name] then groups[pet.Name] = {} end
+                                table.insert(groups[pet.Name], id)
+                                if #groups[pet.Name] >= 5 then
+                                    batch = {groups[pet.Name][1], groups[pet.Name][2], groups[pet.Name][3], groups[pet.Name][4], groups[pet.Name][5]}
+                                    break
+                                end
+                            end
+                        end
+                        
+                        if batch then
+                            Network:InvokeServer("StartRainbow", batch)
+                            task.wait(_delay)
+                        else
+                            print("[AutoCraft] Rainbow done! Returning...")
+                            break
+                        end
+                    end
+                    
+                    if _savedFarmingPos then TeleportTo(_savedFarmingPos) end
+                    return
+                end
+            end
+        end
+    end
+    
+    -- Toggle functions
+    function AutoCraft.toggleGolden(val)
+        _goldenEnabled = val
+        if _goldenEnabled then
+            print("[AutoCraft] Golden Started (Strict Mode)")
+            task.spawn(function()
+                while _goldenEnabled do
+                    pcall(CheckAndClaim)
+                    pcall(CraftProcess)
+                    task.wait(3)
+                end
+            end)
+        else
+            print("[AutoCraft] Golden Stopped")
+        end
+    end
+    
+    function AutoCraft.toggleRainbow(val)
+        _rainbowEnabled = val
+        if _rainbowEnabled then
+            print("[AutoCraft] Rainbow Started (Strict Mode)")
+            task.spawn(function()
+                while _rainbowEnabled do
+                    pcall(CheckAndClaim)
+                    pcall(CraftProcess)
+                    task.wait(3)
+                end
+            end)
+        else
+            print("[AutoCraft] Rainbow Stopped")
+        end
+    end
+    
+    function AutoCraft.toggleClaim(val) _claimEnabled = val end
+    function AutoCraft.setDelay(val) _delay = val end
+end
+
+
+
+
+
+
+
+-- [[ WEBHOOK MODULE (LITE VERSION - SIMPLE & STABLE) ]]
 local Webhook = {}
 do
-    local HttpService = game:GetService("HttpService")
+    local _scanning = false
     local _knownPets = {}
-    
-    local RarityValue = {
-        ["Common"] = 1, ["Uncommon"] = 2, ["Rare"] = 3,
+
+    local RarityRank = {
+        ["Common"] = 1, ["Uncommon"] = 2, ["Rare"] = 3, 
         ["Epic"] = 4, ["Legendary"] = 5, ["Mythic"] = 6, ["Secret"] = 99
     }
+
+    -- Load Modules
+    local RS = game:GetService("ReplicatedStorage")
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
     
-    function Webhook.send(petName, petRarity, petTier)
-        if not _G.WebhookSettings.Enabled or _G.WebhookSettings.Url == "" then return end
-        
-        -- Embed color based on rarity
-        local embedColor = 16776960 -- Yellow default
+    local Replication, PetStats
+    pcall(function()
+        Replication = require(RS.Game.Replication)
+        PetStats = require(RS.Game.PetStats)
+    end)
+
+    -- Init: Mark existing pets
+    function Webhook.init()
+        if Replication and Replication.Data and Replication.Data.Pets then
+            for id, _ in pairs(Replication.Data.Pets) do
+                _knownPets[id] = true
+            end
+        end
+    end
+
+    -- Send to Discord (Simple - Avatar Thumbnail)
+    local function sendToDiscord(petName, petRarity, petTier)
+        if _G.WebhookSettings.Url == "" then return end
+
+        local embedColor = 16776960 -- Yellow
         if petRarity == "Mythic" then embedColor = 10038562 end
         if petRarity == "Secret" then embedColor = 0 end
-        if petTier == "Golden" then embedColor = 16766720 end
-        if petTier == "Rainbow" then embedColor = 16711935 end
-        
-        local LP = game.Players.LocalPlayer
+
+        local LP = Players.LocalPlayer
         local payload = {
             embeds = {{
-                title = "🎉 NEW PET HATCHED!",
-                description = "**Player:** " .. LP.Name,
+                title = petRarity:upper() .. " HATCHED!",
                 color = embedColor,
                 fields = {
-                    { name = "🐶 Pet", value = petName, inline = true },
-                    { name = "💎 Rarity", value = petRarity, inline = true },
-                    { name = "✨ Tier", value = petTier or "Normal", inline = true }
+                    { name = "Player", value = LP.Name, inline = false },
+                    { name = "Pet Name", value = petName, inline = true },
+                    { name = "Rarity", value = petRarity, inline = true },
+                    { name = "Tier", value = petTier, inline = true }
                 },
                 thumbnail = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LP.UserId .. "&width=420&height=420&format=png" },
                 footer = { text = "TapSim Hub" },
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
             }}
         }
-        
+
         pcall(function()
             request({
                 Url = _G.WebhookSettings.Url,
                 Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
+                Headers = {
+                    ["Content-Type"] = "application/json",
+                    ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
+                },
                 Body = HttpService:JSONEncode(payload)
             })
         end)
         
         print("[Webhook] Sent: " .. petName .. " (" .. petRarity .. ")")
     end
-    
-    function Webhook.scanPets()
-        local rep = SmartSave.getModules()
-        if not rep or not rep.Data or not rep.Data.Pets then return end
+
+    -- Main Loop
+    function Webhook.startLoop()
+        if _scanning then return end
+        _scanning = true
         
-        for id, petData in pairs(rep.Data.Pets) do
-            if not _knownPets[id] then
-                _knownPets[id] = true
-                
-                -- Get rarity
-                local stats = Pets.getPetStats()
-                local myRarity = "Common"
-                if stats and stats.GetRarity then
-                    myRarity = stats:GetRarity(petData.Name) or "Common"
-                end
-                
-                local myRank = RarityValue[myRarity] or 1
-                local targetRank = RarityValue[_G.WebhookSettings.MinRarity] or 5
-                
-                -- Send if meets threshold
-                if myRank >= targetRank then
-                    local tier = petData.Tier or "Normal"
-                    Webhook.send(petData.Name, myRarity, tier)
-                end
-            end
-        end
-    end
-    
-    function Webhook.start()
-        -- Initial scan
         task.spawn(function()
             task.wait(3)
-            local rep = SmartSave.getModules()
-            if rep and rep.Data and rep.Data.Pets then
-                for id, _ in pairs(rep.Data.Pets) do
-                    _knownPets[id] = true
-                end
-            end
-            print("[Webhook] Initial pet scan complete")
+            Webhook.init()
         end)
-        
-        -- Monitor loop
+
         task.spawn(function()
             while true do
-                if _G.WebhookSettings.Enabled then
-                    pcall(Webhook.scanPets)
+                if _G.WebhookSettings.Enabled and Replication and Replication.Data and Replication.Data.Pets then
+                    for id, petData in pairs(Replication.Data.Pets) do
+                        if not _knownPets[id] then
+                            _knownPets[id] = true
+                            
+                            local rarity = "Common"
+                            if PetStats and PetStats.GetRarity then
+                                local success, result = pcall(function()
+                                    return PetStats:GetRarity(petData.Name)
+                                end)
+                                if success and result then
+                                    rarity = result:sub(1,1):upper() .. result:sub(2):lower()
+                                end
+                            end
+                            
+                            local myRank = RarityRank[rarity] or 1
+                            local targetRank = RarityRank[_G.WebhookSettings.MinRarity] or 5
+                            
+                            if myRank >= targetRank then
+                                local tier = petData.Tier or "Normal"
+                                sendToDiscord(petData.Name, rarity, tier)
+                            end
+                        end
+                    end
                 end
                 task.wait(1)
             end
         end)
     end
+    
+    -- Setters
+    function Webhook.toggle(val) _G.WebhookSettings.Enabled = val end
+    function Webhook.setUrl(val) _G.WebhookSettings.Url = val end
+    function Webhook.setRarity(val) _G.WebhookSettings.MinRarity = val end
 end
 
--- Start webhook monitor
-Webhook.start()
+-- Start webhook
+Webhook.startLoop()
 
 -- [[ EGGS MODULE ]]
 local Eggs = {}
@@ -1301,6 +1541,22 @@ Tabs.Pets:AddToggle("KeepRainbow", {
     _G.DeleteSettings.KeepRainbow = value
 end)
 
+Tabs.Pets:AddParagraph({ Title = "Crafting", Content = "" })
+
+Tabs.Pets:AddToggle("AutoGolden", {
+    Title = "Auto Golden",
+    Default = false
+}):OnChanged(function(value)
+    AutoCraft.toggleGolden(value)
+end)
+
+Tabs.Pets:AddToggle("AutoRainbow", {
+    Title = "Auto Rainbow",
+    Default = false
+}):OnChanged(function(value)
+    AutoCraft.toggleRainbow(value)
+end)
+
 -- ============================================
 -- ISLANDS TAB
 -- ============================================
@@ -1402,8 +1658,8 @@ end)
 
 Tabs.Webhook:AddInput("WebhookUrl", {
     Title = "URL",
-    Description = "Use hooks.hyra.io proxy",
-    Placeholder = "https://hooks.hyra.io/...",
+    Description = "Paste Discord webhook URL",
+    Placeholder = "https://discord.com/api/webhooks/...",
     Numeric = false,
     Finished = true,
     Callback = function(value)
@@ -1418,6 +1674,52 @@ Tabs.Webhook:AddDropdown("WebhookRarity", {
 }):OnChanged(function(value)
     _G.WebhookSettings.MinRarity = value
 end)
+
+Tabs.Webhook:AddButton({
+    Title = "Test Webhook",
+    Callback = function()
+        if _G.WebhookSettings.Url == "" then
+            Fluent:Notify({ Title = "Webhook", Content = "URL is empty!", Duration = 2 })
+            return
+        end
+        
+        local HttpService = game:GetService("HttpService")
+        local LP = game.Players.LocalPlayer
+        local payload = {
+            embeds = {{
+                title = "TEST HATCHED!",
+                color = 5763719,
+                fields = {
+                    { name = "Player", value = LP.Name, inline = false },
+                    { name = "Pet Name", value = "Test Pet", inline = true },
+                    { name = "Rarity", value = "Legendary", inline = true },
+                    { name = "Tier", value = "Rainbow", inline = true }
+                },
+                thumbnail = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LP.UserId .. "&width=420&height=420&format=png" },
+                footer = { text = "TapSim Hub" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+        
+        local success = pcall(function()
+            request({
+                Url = _G.WebhookSettings.Url,
+                Method = "POST",
+                Headers = { 
+                    ["Content-Type"] = "application/json",
+                    ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"
+                },
+                Body = HttpService:JSONEncode(payload)
+            })
+        end)
+        
+        if success then
+            Fluent:Notify({ Title = "Webhook", Content = "Test sent!", Duration = 2 })
+        else
+            Fluent:Notify({ Title = "Webhook", Content = "Failed!", Duration = 2 })
+        end
+    end
+})
 
 -- ============================================
 -- FINISH
