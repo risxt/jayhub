@@ -951,6 +951,81 @@ local Window = Fluent:CreateWindow({
 
 _G.TapSimUI = Window
 
+-- ============================================
+-- MOBILE TOGGLE BUTTON (For Android)
+-- ============================================
+local function CreateMobileToggle()
+    local Players = game:GetService("Players")
+    local UserInputService = game:GetService("UserInputService")
+    
+    -- Only create on mobile/touch devices
+    if not UserInputService.TouchEnabled then return end
+    
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    
+    -- Create toggle button
+    local toggleGui = Instance.new("ScreenGui")
+    toggleGui.Name = "TapSimToggle"
+    toggleGui.ResetOnSpawn = false
+    toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    toggleGui.Parent = playerGui
+    
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Name = "ToggleBtn"
+    toggleBtn.Size = UDim2.new(0, 50, 0, 50)
+    toggleBtn.Position = UDim2.new(0, 10, 0.5, -25)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    toggleBtn.Text = "TS"
+    toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    toggleBtn.TextSize = 18
+    toggleBtn.Font = Enum.Font.GothamBold
+    toggleBtn.Parent = toggleGui
+    
+    -- Round corners
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = toggleBtn
+    
+    -- Make draggable
+    local dragging, dragStart, startPos
+    toggleBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = toggleBtn.Position
+        end
+    end)
+    
+    toggleBtn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            toggleBtn.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    -- Toggle UI on click
+    toggleBtn.MouseButton1Click:Connect(function()
+        if Window then
+            Window:Minimize()
+        end
+    end)
+    
+    print("[TapSim] Mobile toggle button created!")
+end
+
+-- Create mobile button
+task.spawn(CreateMobileToggle)
+
 -- Create Tabs
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "zap" }),
