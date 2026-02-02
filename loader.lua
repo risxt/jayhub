@@ -647,7 +647,7 @@ local Tabs = {
 -- ============================================
 -- MAIN TAB (Farm, Rebirth, Rewards)
 -- ============================================
-Tabs.Main:AddParagraph({ Title = "⚡ Auto Farm", Content = "Super fast clicking - adjust speed below" })
+Tabs.Main:AddParagraph({ Title = "Auto Farm", Content = "Super fast clicking" })
 
 Tabs.Main:AddToggle("AutoFarm", {
     Title = "Auto Farm",
@@ -665,7 +665,7 @@ Tabs.Main:AddSlider("FarmDelay", {
     Callback = function(v) _G.Settings.FarmDelay = v end
 })
 
-Tabs.Main:AddParagraph({ Title = "💰 Smart Rebirth", Content = "Nabung strategy: waits then buys highest tier (4→3→2→1)" })
+Tabs.Main:AddParagraph({ Title = "Smart Rebirth", Content = "Nabung strategy: wait then buy highest tier" })
 
 Tabs.Main:AddToggle("AutoRebirth", {
     Title = "Auto Rebirth",
@@ -696,7 +696,7 @@ Tabs.Main:AddButton({
     end
 })
 
-Tabs.Main:AddParagraph({ Title = "🎁 Rewards", Content = "Auto claim rank rewards every 5 minutes" })
+Tabs.Main:AddParagraph({ Title = "Rewards", Content = "Auto claim rank rewards every 5 minutes" })
 
 Tabs.Main:AddToggle("AutoRankReward", {
     Title = "Auto Claim Rank Reward",
@@ -800,7 +800,7 @@ Tabs.Eggs:AddButton({
 
 -- Speedometer Display
 local SpeedDisplay = Tabs.Eggs:AddParagraph({
-    Title = "📈 Speedometer",
+    Title = "Speedometer",
     Content = "0 Eggs/s | Waiting..."
 })
 
@@ -824,7 +824,7 @@ end)
 -- ============================================
 -- ISLANDS TAB (Unlock, GPS Teleport)
 -- ============================================
-Tabs.Islands:AddParagraph({ Title = "🔓 Island Unlock", Content = "Auto-discover and unlock all islands" })
+Tabs.Islands:AddParagraph({ Title = "Island Unlock", Content = "Auto-discover and unlock all islands" })
 
 Tabs.Islands:AddToggle("AutoIsland", {
     Title = "Auto Unlock Islands",
@@ -860,7 +860,7 @@ Tabs.Islands:AddButton({
 })
 
 -- Teleport Section (GPS Mode)
-Tabs.Islands:AddParagraph({ Title = "📍 GPS Teleport", Content = "Instant teleport using hardcoded coordinates (16 locations)" })
+Tabs.Islands:AddParagraph({ Title = "GPS Teleport", Content = "Instant teleport to any island (16 locations)" })
 
 -- Use coordinate database for dropdown
 local islandList = Islands.getLocationList()
@@ -894,7 +894,7 @@ Tabs.Islands:AddButton({
 -- ============================================
 -- UPGRADES TAB (Stats, Jump)
 -- ============================================
-Tabs.Upgrades:AddParagraph({ Title = "⬆️ Auto Upgrades", Content = "Automatically purchase stat upgrades and jump boosts" })
+Tabs.Upgrades:AddParagraph({ Title = "Auto Upgrades", Content = "Automatically purchase stat upgrades" })
 
 Tabs.Upgrades:AddToggle("AutoUpgrade", {
     Title = "Auto Upgrades",
