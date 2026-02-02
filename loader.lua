@@ -97,6 +97,13 @@ _G.SmartSave = {
 -- Auto Best Island
 _G.AutoGoBest = false
 
+-- Webhook Settings
+_G.WebhookSettings = {
+    Enabled = false,
+    Url = "",
+    MinRarity = "Legendary"
+}
+
 -- ============================================
 -- SUPER ANTI-AFK V2 (AGGRESSIVE)
 -- ============================================
@@ -808,6 +815,111 @@ end
 -- Start auto best island loop
 AutoBestIsland.start()
 
+-- [[ DISCORD WEBHOOK MODULE ]]
+local Webhook = {}
+do
+    local HttpService = game:GetService("HttpService")
+    local _knownPets = {}
+    
+    local RarityValue = {
+        ["Common"] = 1, ["Uncommon"] = 2, ["Rare"] = 3,
+        ["Epic"] = 4, ["Legendary"] = 5, ["Mythic"] = 6, ["Secret"] = 99
+    }
+    
+    function Webhook.send(petName, petRarity, petTier)
+        if not _G.WebhookSettings.Enabled or _G.WebhookSettings.Url == "" then return end
+        
+        -- Embed color based on rarity
+        local embedColor = 16776960 -- Yellow default
+        if petRarity == "Mythic" then embedColor = 10038562 end
+        if petRarity == "Secret" then embedColor = 0 end
+        if petTier == "Golden" then embedColor = 16766720 end
+        if petTier == "Rainbow" then embedColor = 16711935 end
+        
+        local LP = game.Players.LocalPlayer
+        local payload = {
+            embeds = {{
+                title = "🎉 NEW PET HATCHED!",
+                description = "**Player:** " .. LP.Name,
+                color = embedColor,
+                fields = {
+                    { name = "🐶 Pet", value = petName, inline = true },
+                    { name = "💎 Rarity", value = petRarity, inline = true },
+                    { name = "✨ Tier", value = petTier or "Normal", inline = true }
+                },
+                thumbnail = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LP.UserId .. "&width=420&height=420&format=png" },
+                footer = { text = "TapSim Hub" },
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }}
+        }
+        
+        pcall(function()
+            request({
+                Url = _G.WebhookSettings.Url,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode(payload)
+            })
+        end)
+        
+        print("[Webhook] Sent: " .. petName .. " (" .. petRarity .. ")")
+    end
+    
+    function Webhook.scanPets()
+        local rep = SmartSave.getModules()
+        if not rep or not rep.Data or not rep.Data.Pets then return end
+        
+        for id, petData in pairs(rep.Data.Pets) do
+            if not _knownPets[id] then
+                _knownPets[id] = true
+                
+                -- Get rarity
+                local stats = Pets.getPetStats()
+                local myRarity = "Common"
+                if stats and stats.GetRarity then
+                    myRarity = stats:GetRarity(petData.Name) or "Common"
+                end
+                
+                local myRank = RarityValue[myRarity] or 1
+                local targetRank = RarityValue[_G.WebhookSettings.MinRarity] or 5
+                
+                -- Send if meets threshold
+                if myRank >= targetRank then
+                    local tier = petData.Tier or "Normal"
+                    Webhook.send(petData.Name, myRarity, tier)
+                end
+            end
+        end
+    end
+    
+    function Webhook.start()
+        -- Initial scan
+        task.spawn(function()
+            task.wait(3)
+            local rep = SmartSave.getModules()
+            if rep and rep.Data and rep.Data.Pets then
+                for id, _ in pairs(rep.Data.Pets) do
+                    _knownPets[id] = true
+                end
+            end
+            print("[Webhook] Initial pet scan complete")
+        end)
+        
+        -- Monitor loop
+        task.spawn(function()
+            while true do
+                if _G.WebhookSettings.Enabled then
+                    pcall(Webhook.scanPets)
+                end
+                task.wait(1)
+            end
+        end)
+    end
+end
+
+-- Start webhook monitor
+Webhook.start()
+
 -- [[ EGGS MODULE ]]
 local Eggs = {}
 local EggsHatchedPerSecond = 0 -- Speedometer counter
@@ -1029,7 +1141,7 @@ task.spawn(CreateMobileToggle)
 -- Create Tabs
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "zap" }),
-    Eggs = Window:AddTab({ Title = "Eggs", Icon = "egg" }),
+    Pets = Window:AddTab({ Title = "Pets", Icon = "egg" }),
     Islands = Window:AddTab({ Title = "Islands", Icon = "map" }),
     Upgrades = Window:AddTab({ Title = "Upgrades", Icon = "trending-up" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
@@ -1038,105 +1150,135 @@ local Tabs = {
 -- ============================================
 -- MAIN TAB
 -- ============================================
-Tabs.Main:AddParagraph({ Title = "Auto Farm", Content = "Super fast clicking" })
+Tabs.Main:AddParagraph({ Title = "Clicking", Content = "" })
 
 Tabs.Main:AddToggle("AutoFarm", {
-    Title = "Auto Farm",
-    Description = "Enable automatic clicking (super fast)",
+    Title = "Auto Click",
     Default = false
 }):OnChanged(function(value)
     Farm.toggle(value)
-    Fluent:Notify({ Title = "Auto Farm", Content = value and "Enabled" or "Disabled", Duration = 2 })
 end)
 
 Tabs.Main:AddSlider("FarmDelay", {
-    Title = "Farm Speed",
-    Description = "Lower = Faster (may cause lag)",
+    Title = "Click Delay",
     Default = 0.01, Min = 0.001, Max = 0.1, Rounding = 3,
     Callback = function(v) _G.Settings.FarmDelay = v end
 })
 
-Tabs.Main:AddParagraph({ Title = "Smart Rebirth", Content = "Nabung strategy: wait then buy highest tier" })
+Tabs.Main:AddParagraph({ Title = "Rebirth", Content = "" })
 
 Tabs.Main:AddToggle("AutoRebirth", {
     Title = "Auto Rebirth",
-    Description = "Smart rebirth with nabung strategy",
     Default = false
 }):OnChanged(function(value)
     Rebirth.toggle(value)
-    Fluent:Notify({ Title = "Auto Rebirth", Content = value and "Enabled" or "Disabled", Duration = 2 })
 end)
 
 Tabs.Main:AddSlider("NabungTime", {
-    Title = "Nabung Time",
-    Description = "Seconds to wait before rebirth attempt",
+    Title = "Cooldown",
+    Description = "Seconds before rebirth",
     Default = 25, Min = 10, Max = 120, Rounding = 0,
     Callback = function(v) _G.Settings.NabungTime = v end
 })
 
 Tabs.Main:AddButton({
-    Title = "Force Rebirth Now",
-    Description = "Attempt rebirth immediately (Tier 4 → 1)",
+    Title = "Force Rebirth",
     Callback = function()
         local success, tier = Rebirth.forceRebirth()
-        Fluent:Notify({
-            Title = "Force Rebirth",
-            Content = success and ("Success! Tier " .. tostring(tier)) or "Failed - not enough money",
-            Duration = 3
-        })
+        Fluent:Notify({ Title = "Rebirth", Content = success and ("Tier " .. tier) or "Failed", Duration = 2 })
     end
 })
 
-Tabs.Main:AddParagraph({ Title = "Rewards", Content = "Auto claim rank rewards every 5 minutes" })
+Tabs.Main:AddParagraph({ Title = "Misc", Content = "" })
 
 Tabs.Main:AddToggle("AutoRankReward", {
-    Title = "Auto Claim Rank Reward",
-    Description = "Automatically claim rank rewards (every 5 min)",
+    Title = "Auto Claim Rewards",
     Default = false
 }):OnChanged(function(value)
     Rewards.toggle(value)
-    Fluent:Notify({ Title = "Auto Rank Reward", Content = value and "Enabled - claiming now!" or "Disabled", Duration = 2 })
 end)
 
 -- ============================================
--- EGGS TAB
+-- PETS TAB
 -- ============================================
 
 -- Discover eggs on load
 local discoveredEggList = Eggs.discoverEggs()
 if #discoveredEggList == 0 then
-    discoveredEggList = {"Basic", "Space", "Starry", "Magma"} -- Fallback
+    discoveredEggList = {"Basic", "Space", "Starry", "Magma"}
 end
 
-Tabs.Eggs:AddParagraph({ Title = "Pets", Content = "Auto equip strongest pets" })
+Tabs.Pets:AddParagraph({ Title = "Hatching", Content = "" })
 
-Tabs.Eggs:AddToggle("AutoEquip", {
-    Title = "Auto Equip Best",
-    Description = "Auto equip strongest pets every 5 seconds",
+local EggDropdown = Tabs.Pets:AddDropdown("TargetEgg", {
+    Title = "Select Egg",
+    Values = discoveredEggList,
+    Default = 1
+})
+EggDropdown:OnChanged(function(value)
+    _G.Settings.TargetEgg = value
+end)
+
+Tabs.Pets:AddDropdown("HatchAmount", {
+    Title = "Hatch Mode",
+    Values = {"1", "3", "8"},
+    Default = 1
+}):OnChanged(function(value)
+    _G.Settings.HatchAmount = tonumber(value)
+end)
+
+Tabs.Pets:AddToggle("AutoHatch", {
+    Title = "Auto Hatch",
+    Default = false
+}):OnChanged(function(value)
+    Eggs.toggle(value)
+end)
+
+Tabs.Pets:AddSlider("HatchDelay", {
+    Title = "Hatch Delay",
+    Default = 0.5, Min = 0.1, Max = 2, Rounding = 1,
+    Callback = function(v) _G.Settings.HatchDelay = v end
+})
+
+Tabs.Pets:AddButton({
+    Title = "Rescan Eggs",
+    Callback = function()
+        local eggs = Eggs.discoverEggs()
+        EggDropdown:SetValues(eggs)
+        Fluent:Notify({ Title = "Scan", Content = #eggs .. " eggs found", Duration = 2 })
+    end
+})
+
+-- Speedometer Display
+local SpeedDisplay = Tabs.Pets:AddParagraph({ Title = "Speed", Content = "0 Eggs/s" })
+task.spawn(function()
+    while true do
+        task.wait(1)
+        local speed = Eggs.getSpeed()
+        SpeedDisplay:SetDesc(speed > 0 and (speed .. " Eggs/s") or "0 Eggs/s")
+    end
+end)
+
+Tabs.Pets:AddParagraph({ Title = "Management", Content = "" })
+
+Tabs.Pets:AddToggle("AutoEquip", {
+    Title = "Auto Equip",
     Default = false
 }):OnChanged(function(value)
     Pets.toggle(value)
-    Fluent:Notify({ Title = "Auto Equip", Content = value and "Enabled" or "Disabled", Duration = 2 })
 end)
 
-Tabs.Eggs:AddParagraph({ Title = "Auto Delete", Content = "Delete trash pets by rarity" })
+Tabs.Pets:AddParagraph({ Title = "Auto Delete", Content = "" })
 
-Tabs.Eggs:AddToggle("AutoDelete", {
-    Title = "Auto Delete",
-    Description = "Enable pet deletion",
+Tabs.Pets:AddToggle("AutoDelete", {
+    Title = "Active",
     Default = false
 }):OnChanged(function(value)
     _G.DeleteSettings.Enabled = value
-    Fluent:Notify({ 
-        Title = "Auto Delete", 
-        Content = value and "ENABLED - Deleting trash!" or "Disabled", 
-        Duration = 3 
-    })
 end)
 
-Tabs.Eggs:AddDropdown("DeleteRarity", {
-    Title = "Delete Rarities",
-    Description = "Select rarities to delete",
+Tabs.Pets:AddDropdown("DeleteRarity", {
+    Title = "Delete Below",
     Values = AutoDelete.RarityList,
     Multi = true,
     Default = {}
@@ -1144,217 +1286,92 @@ Tabs.Eggs:AddDropdown("DeleteRarity", {
     _G.DeleteSettings.SelectedRarities = value
 end)
 
-Tabs.Eggs:AddToggle("KeepGolden", {
-    Title = "Keep Golden",
+Tabs.Pets:AddToggle("KeepGolden", {
+    Title = "Safe Golden",
     Default = true
 }):OnChanged(function(value)
     _G.DeleteSettings.KeepGolden = value
 end)
 
-Tabs.Eggs:AddToggle("KeepRainbow", {
-    Title = "Keep Rainbow",
+Tabs.Pets:AddToggle("KeepRainbow", {
+    Title = "Safe Rainbow",
     Default = true
 }):OnChanged(function(value)
     _G.DeleteSettings.KeepRainbow = value
 end)
 
-Tabs.Eggs:AddParagraph({ Title = "Auto Egg Hatch", Content = "Select egg and amount to auto hatch" })
-
-Tabs.Eggs:AddToggle("AutoHatch", {
-    Title = "Auto Hatch",
-    Description = "Continuously hatch selected egg",
-    Default = false
-}):OnChanged(function(value)
-    Eggs.toggle(value)
-    Fluent:Notify({ Title = "Auto Hatch", Content = value and "Enabled" or "Disabled", Duration = 2 })
-end)
-
-local EggDropdown = Tabs.Eggs:AddDropdown("TargetEgg", {
-    Title = "Target Egg",
-    Description = "Select which egg to hatch",
-    Values = discoveredEggList,
-    Default = 1
-})
-
-EggDropdown:OnChanged(function(value)
-    _G.Settings.TargetEgg = value
-    Fluent:Notify({ Title = "Target Egg", Content = "Set to: " .. value, Duration = 2 })
-end)
-
-Tabs.Eggs:AddDropdown("HatchAmount", {
-    Title = "Hatch Amount",
-    Description = "How many eggs to hatch at once",
-    Values = {"1", "3", "8"},
-    Default = 1
-}):OnChanged(function(value)
-    _G.Settings.HatchAmount = tonumber(value)
-end)
-
-Tabs.Eggs:AddSlider("HatchDelay", {
-    Title = "Hatch Speed",
-    Description = "Delay between hatches (seconds)",
-    Default = 0.5, Min = 0.1, Max = 2, Rounding = 1,
-    Callback = function(v) _G.Settings.HatchDelay = v end
-})
-
-Tabs.Eggs:AddButton({
-    Title = "Rescan Eggs",
-    Description = "Re-discover available eggs",
-    Callback = function()
-        local eggs = Eggs.discoverEggs()
-        EggDropdown:SetValues(eggs)
-        Fluent:Notify({
-            Title = "Egg Scan",
-            Content = "Found " .. tostring(#eggs) .. " eggs",
-            Duration = 3
-        })
-    end
-})
-
--- Speedometer Display
-local SpeedDisplay = Tabs.Eggs:AddParagraph({
-    Title = "Speedometer",
-    Content = "0 Eggs/s | Waiting..."
-})
-
--- Update speedometer UI every second
-task.spawn(function()
-    while true do
-        task.wait(1)
-        local speed = Eggs.getSpeed()
-        if speed > 0 then
-            SpeedDisplay:SetDesc(speed .. " Eggs/s | Est. " .. (speed * 60) .. " Eggs/min")
-        else
-            if _G.Settings.AutoHatch then
-                SpeedDisplay:SetDesc("0 Eggs/s | Hatching...")
-            else
-                SpeedDisplay:SetDesc("0 Eggs/s | Waiting...")
-            end
-        end
-    end
-end)
-
 -- ============================================
 -- ISLANDS TAB
 -- ============================================
-Tabs.Islands:AddParagraph({ Title = "Island Unlock", Content = "Auto-discover and unlock all islands" })
+Tabs.Islands:AddParagraph({ Title = "Automation", Content = "" })
 
 Tabs.Islands:AddToggle("AutoIsland", {
-    Title = "Auto Unlock Islands",
-    Description = "Periodically attempt to unlock all islands",
+    Title = "Auto Unlock",
     Default = false
 }):OnChanged(function(value)
     Islands.toggle(value)
-    Fluent:Notify({ Title = "Auto Islands", Content = value and "Enabled" or "Disabled", Duration = 2 })
-end)
-
-Tabs.Islands:AddToggle("SmartSave", {
-    Title = "Smart Save",
-    Description = "Stop hatching at 90% of island price",
-    Default = false
-}):OnChanged(function(value)
-    _G.SmartSave.Enabled = value
-    Fluent:Notify({ Title = "Smart Save", Content = value and "Saving for island!" or "Disabled", Duration = 2 })
 end)
 
 Tabs.Islands:AddToggle("AutoBestIsland", {
-    Title = "Auto Best Island",
-    Description = "Teleport to highest unlocked island (every 10s)",
+    Title = "Auto Go Best",
     Default = false
 }):OnChanged(function(value)
     AutoBestIsland.toggle(value)
-    Fluent:Notify({ Title = "Auto Best Island", Content = value and "Enabled" or "Disabled", Duration = 2 })
 end)
 
-Tabs.Islands:AddButton({
-    Title = "Force Unlock All",
-    Description = "Attempt to unlock all discovered islands now",
-    Callback = function()
-        local count = #Islands.getDiscoveredIslands()
-        Islands.unlockAll()
-        Fluent:Notify({ Title = "Island Unlock", Content = "Attempted " .. tostring(count) .. " islands", Duration = 3 })
-    end
-})
+Tabs.Islands:AddToggle("SmartSave", {
+    Title = "Smart Saving",
+    Description = "Stop hatch at 90% island price",
+    Default = false
+}):OnChanged(function(value)
+    _G.SmartSave.Enabled = value
+end)
 
-Tabs.Islands:AddButton({
-    Title = "Rescan Islands",
-    Description = "Re-discover island names from map",
-    Callback = function()
-        local islands = Islands.discoverIslands()
-        Fluent:Notify({
-            Title = "Island Scan",
-            Content = "Found " .. tostring(#islands) .. " islands",
-            SubContent = table.concat(islands, ", "),
-            Duration = 5
-        })
-    end
-})
+Tabs.Islands:AddParagraph({ Title = "Travel", Content = "" })
 
--- Teleport Section
-Tabs.Islands:AddParagraph({ Title = "Teleport", Content = "Teleport to any island" })
-
--- Use coordinate database for dropdown
 local islandList = Islands.getLocationList()
+local selectedIsland = islandList[1] or "Spawn"
 
 local IslandDropdown = Tabs.Islands:AddDropdown("TeleportIsland", {
-    Title = "Select Island",
-    Description = "Choose island to teleport to",
+    Title = "Destination",
     Values = islandList,
     Default = 1
 })
-
--- Track selected island
-local selectedIsland = islandList[1] or "Spawn"
 IslandDropdown:OnChanged(function(value)
     selectedIsland = value
 end)
 
 Tabs.Islands:AddButton({
-    Title = "Teleport Now",
-    Description = "Teleport to selected island",
+    Title = "Teleport",
     Callback = function()
         local success = Islands.teleportTo(selectedIsland)
-        Fluent:Notify({
-            Title = "Teleport",
-            Content = success and ("Teleported to " .. selectedIsland) or ("Failed: " .. selectedIsland),
-            Duration = 2
-        })
+        Fluent:Notify({ Title = "TP", Content = success and selectedIsland or "Failed", Duration = 2 })
     end
 })
 
 -- ============================================
 -- UPGRADES TAB
 -- ============================================
-Tabs.Upgrades:AddParagraph({ Title = "Auto Upgrades", Content = "Automatically purchase stat upgrades" })
+Tabs.Upgrades:AddParagraph({ Title = "Auto Buy", Content = "" })
 
 Tabs.Upgrades:AddToggle("AutoUpgrade", {
     Title = "Auto Upgrades",
-    Description = "Auto buy all stat upgrades",
     Default = false
 }):OnChanged(function(value)
     Upgrades.toggleUpgrade(value)
-    Fluent:Notify({ Title = "Auto Upgrades", Content = value and "Enabled" or "Disabled", Duration = 2 })
 end)
 
 Tabs.Upgrades:AddToggle("AutoJump", {
-    Title = "Auto Jump Upgrade",
-    Description = "Auto upgrade jump height",
+    Title = "Auto Jump",
     Default = false
 }):OnChanged(function(value)
     Upgrades.toggleJump(value)
-    Fluent:Notify({ Title = "Auto Jump", Content = value and "Enabled" or "Disabled", Duration = 2 })
 end)
 
 Tabs.Upgrades:AddSlider("UpgradeDelay", {
-    Title = "Upgrade Interval",
-    Description = "Seconds between upgrade attempts",
+    Title = "Interval",
     Default = 3, Min = 1, Max = 30, Rounding = 0,
     Callback = function(v) _G.Settings.UpgradeDelay = v end
-})
-
-Tabs.Upgrades:AddParagraph({
-    Title = "Upgrade List",
-    Content = "RebirthButtons, FreeAutoClicker, HatchSpeed,\nCriticalChance, GoldenLuck, AutoClickerSpeed,\nClickMultiplier"
 })
 
 -- ============================================
@@ -1368,7 +1385,35 @@ SaveManager:SetFolder("TapSimHub/configs")
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
 
-Tabs.Settings:AddParagraph({ Title = "Credits", Content = "TapSim Hub v1.1\nPowered by Fluent UI" })
+Tabs.Settings:AddParagraph({ Title = "Webhook", Content = "" })
+
+Tabs.Settings:AddToggle("WebhookEnabled", {
+    Title = "Enable Webhook",
+    Default = false
+}):OnChanged(function(value)
+    _G.WebhookSettings.Enabled = value
+end)
+
+Tabs.Settings:AddInput("WebhookUrl", {
+    Title = "Webhook URL",
+    Description = "Use hooks.hyra.io proxy",
+    Placeholder = "https://hooks.hyra.io/...",
+    Numeric = false,
+    Finished = true,
+    Callback = function(value)
+        _G.WebhookSettings.Url = value
+    end
+})
+
+Tabs.Settings:AddDropdown("WebhookRarity", {
+    Title = "Min Rarity",
+    Values = {"Rare", "Epic", "Legendary", "Mythic", "Secret"},
+    Default = "Legendary"
+}):OnChanged(function(value)
+    _G.WebhookSettings.MinRarity = value
+end)
+
+Tabs.Settings:AddParagraph({ Title = "Credits", Content = "TapSim Hub v1.3" })
 
 -- ============================================
 -- FINISH
@@ -1376,12 +1421,11 @@ Tabs.Settings:AddParagraph({ Title = "Credits", Content = "TapSim Hub v1.1\nPowe
 Window:SelectTab(1)
 
 Fluent:Notify({
-    Title = "TapSim Hub",
-    Content = "Script loaded successfully!",
-    SubContent = "Use RightCtrl to minimize",
-    Duration = 5
+    Title = "TapSim",
+    Content = "Loaded!",
+    Duration = 3
 })
 
 SaveManager:LoadAutoloadConfig()
 
-print("[TapSim] Hub loaded successfully!")
+print("[TapSim] Hub loaded!")
