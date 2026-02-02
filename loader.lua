@@ -76,6 +76,27 @@ _G.Settings.TargetEgg = "Basic"
 _G.Settings.HatchAmount = 1
 _G.Settings.HatchDelay = 0.5
 
+-- Pets
+_G.Settings.AutoEquip = false
+
+-- Delete Settings (Multi-Select)
+_G.DeleteSettings = {
+    Enabled = false,
+    SelectedRarities = {},
+    KeepGolden = true,
+    KeepRainbow = true,
+    KeepHuge = true,
+}
+
+-- Smart Save Settings
+_G.SmartSave = {
+    Enabled = false,
+    Threshold = 0.9
+}
+
+-- Auto Best Island
+_G.AutoGoBest = false
+
 -- ============================================
 -- SUPER ANTI-AFK V2 (AGGRESSIVE)
 -- ============================================
@@ -497,6 +518,296 @@ end
 -- Start rewards loop in background
 Rewards.startAutoReward()
 
+-- [[ PETS MODULE (SIGNAL METHOD) ]]
+local Pets = {}
+do
+    local _equipThread = nil
+    local _signal = nil
+    
+    function Pets.getSignal()
+        if not _signal then
+            local RS = game:GetService("ReplicatedStorage")
+            local modulesFolder = RS:FindFirstChild("Modules")
+            if modulesFolder and modulesFolder:FindFirstChild("Signal") then
+                _signal = require(modulesFolder.Signal)
+            end
+        end
+        return _signal
+    end
+    
+    function Pets.equipBest()
+        local sig = Pets.getSignal()
+        if not sig then 
+            warn("[TapSim] Signal module not found!")
+            return false 
+        end
+        
+        local success = pcall(function()
+            sig.Fire("EquipBest")
+        end)
+        
+        if success then
+            print("[TapSim] Equip Best: Signal fired")
+            return true
+        end
+        return false
+    end
+    
+    function Pets.startAutoEquip()
+        if _equipThread then return end
+        _equipThread = task.spawn(function()
+            while true do
+                if _G.Settings.AutoEquip then
+                    Pets.equipBest()
+                end
+                task.wait(5)
+            end
+        end)
+    end
+    
+    function Pets.toggle(enabled)
+        _G.Settings.AutoEquip = enabled
+        if enabled then
+            Pets.equipBest()
+        end
+    end
+end
+
+-- Start auto equip loop
+Pets.startAutoEquip()
+
+-- [[ AUTO DELETE MODULE (DROPDOWN EDITION) ]]
+local AutoDelete = {}
+do
+    local _deleteThread = nil
+    local _network = nil
+    local _replication = nil
+    local _petStats = nil
+    
+    -- Rarity ranking (lower = more trash)
+    local RarityRank = {
+        ["None"] = 0,
+        ["Common"] = 1,
+        ["Uncommon"] = 2,
+        ["Rare"] = 3,
+        ["Epic"] = 4,
+        ["Legendary"] = 5,
+        ["Mythic"] = 6,
+        ["Secret"] = 99
+    }
+    
+    AutoDelete.RarityList = {"None", "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic"}
+    
+    function AutoDelete.getModules()
+        if not _network then
+            local RS = game:GetService("ReplicatedStorage")
+            local modules = RS:FindFirstChild("Modules")
+            local gameFolder = RS:FindFirstChild("Game")
+            
+            if modules and modules:FindFirstChild("Network") then
+                _network = require(modules.Network)
+            end
+            if gameFolder and gameFolder:FindFirstChild("Replication") then
+                _replication = require(gameFolder.Replication)
+            end
+            if gameFolder and gameFolder:FindFirstChild("PetStats") then
+                _petStats = require(gameFolder.PetStats)
+            end
+        end
+        return _network, _replication, _petStats
+    end
+    
+    function AutoDelete.runDelete()
+        local net, rep, stats = AutoDelete.getModules()
+        if not net or not rep then return 0 end
+        if not rep.Data or not rep.Data.Pets then return 0 end
+        
+        local deletedCount = 0
+        
+        for petId, petData in pairs(rep.Data.Pets) do
+            if not _G.DeleteSettings.Enabled then break end
+            
+            if not petData.Equipped and not petData.Locked then
+                local shouldDelete = false
+                
+                -- Get Rarity
+                local rarity = "Common"
+                if stats then
+                    pcall(function()
+                        rarity = stats:GetRarity(petData.Name)
+                    end)
+                end
+                
+                -- Multi-select logic: delete if rarity is in selected list
+                if _G.DeleteSettings.SelectedRarities[rarity] then
+                    shouldDelete = true
+                end
+                
+                -- Safety filters (whitelist)
+                if petData.Tier == "Golden" and _G.DeleteSettings.KeepGolden then shouldDelete = false end
+                if petData.Tier == "Rainbow" and _G.DeleteSettings.KeepRainbow then shouldDelete = false end
+                if rarity == "Secret" then shouldDelete = false end
+                if petData.Huge or petData.Exclusive then shouldDelete = false end
+                
+                -- Execute delete
+                if shouldDelete then
+                    pcall(function()
+                        net:InvokeServer("DeletePet", petId)
+                    end)
+                    deletedCount = deletedCount + 1
+                    task.wait(0.1)
+                end
+            end
+        end
+        
+        return deletedCount
+    end
+    
+    function AutoDelete.start()
+        if _deleteThread then return end
+        _deleteThread = task.spawn(function()
+            while true do
+                if _G.DeleteSettings.Enabled then
+                    pcall(AutoDelete.runDelete)
+                end
+                task.wait(1)
+            end
+        end)
+    end
+end
+
+-- Start auto delete loop
+AutoDelete.start()
+
+-- [[ SMART SAVE MODULE ]]
+local SmartSave = {}
+do
+    local _replication = nil
+    local _islandUpgrades = nil
+    
+    function SmartSave.getModules()
+        if not _replication then
+            local RS = game:GetService("ReplicatedStorage")
+            local gameFolder = RS:FindFirstChild("Game")
+            
+            if gameFolder then
+                if gameFolder:FindFirstChild("Replication") then
+                    _replication = require(gameFolder.Replication)
+                end
+                if gameFolder:FindFirstChild("IslandUpgrades") then
+                    _islandUpgrades = require(gameFolder.IslandUpgrades)
+                end
+            end
+        end
+        return _replication, _islandUpgrades
+    end
+    
+    function SmartSave.isSafeToSpend()
+        if not _G.SmartSave.Enabled then return true end
+        
+        local rep, islands = SmartSave.getModules()
+        if not rep or not islands then return true end
+        
+        local currentClicks = 0
+        local nextIslandPrice = 0
+        
+        pcall(function()
+            currentClicks = rep.Data.Clicks or 0
+        end)
+        
+        pcall(function()
+            nextIslandPrice = islands:GetPrice()
+        end)
+        
+        if nextIslandPrice > 0 then
+            local threshold = nextIslandPrice * _G.SmartSave.Threshold
+            if currentClicks >= threshold then
+                return false
+            end
+        end
+        
+        return true
+    end
+end
+
+-- [[ AUTO BEST ISLAND MODULE ]]
+local AutoBestIsland = {}
+do
+    local _thread = nil
+    local _replication = nil
+    
+    -- Island order (lowest to highest) - matches Islands.Locations
+    local IslandOrder = {
+        "Forest", "Winter", "Desert", "Jungle", "Heaven",
+        "Dojo", "Volcano", "Candy", "Atlantis", "Space",
+        "Kryo", "Magma", "Celestial", "Holographic", "Lunar"
+    }
+    
+    function AutoBestIsland.getReplication()
+        if not _replication then
+            local RS = game:GetService("ReplicatedStorage")
+            local gameFolder = RS:FindFirstChild("Game")
+            if gameFolder and gameFolder:FindFirstChild("Replication") then
+                _replication = require(gameFolder.Replication)
+            end
+        end
+        return _replication
+    end
+    
+    function AutoBestIsland.getBestIsland()
+        local rep = AutoBestIsland.getReplication()
+        if not rep or not rep.Data then return "Forest" end
+        
+        -- Islands are stored in rep.Data.Portals (e.g., rep.Data.Portals.Jungle = true)
+        local portals = rep.Data.Portals or {}
+        local bestIsland = "Forest"
+        
+        for _, name in ipairs(IslandOrder) do
+            if portals[name] == true then
+                bestIsland = name
+            end
+        end
+        
+        return bestIsland
+    end
+    
+    function AutoBestIsland.teleportToBest()
+        local bestIsland = AutoBestIsland.getBestIsland()
+        local LP = game.Players.LocalPlayer
+        
+        -- Use Islands.Locations coords
+        local targetCFrame = Islands.Locations[bestIsland]
+        if targetCFrame and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            LP.Character.HumanoidRootPart.CFrame = targetCFrame
+            print("[TapSim] Teleported to best island: " .. bestIsland)
+            return true
+        end
+        return false
+    end
+    
+    function AutoBestIsland.start()
+        if _thread then return end
+        _thread = task.spawn(function()
+            while true do
+                if _G.AutoGoBest then
+                    pcall(AutoBestIsland.teleportToBest)
+                end
+                task.wait(10)
+            end
+        end)
+    end
+    
+    function AutoBestIsland.toggle(enabled)
+        _G.AutoGoBest = enabled
+        if enabled then
+            AutoBestIsland.teleportToBest()
+        end
+    end
+end
+
+-- Start auto best island loop
+AutoBestIsland.start()
+
 -- [[ EGGS MODULE ]]
 local Eggs = {}
 local EggsHatchedPerSecond = 0 -- Speedometer counter
@@ -571,16 +882,21 @@ do
                 local eggName = _G.Settings.TargetEgg or "Basic"
                 local amount = _G.Settings.HatchAmount or 1
                 
-                -- Track successful hatches for speedometer
-                local success = pcall(function() 
-                    hatchRemote:InvokeServer(eggName, amount, {}) 
-                end)
-                
-                if success then
-                    EggsHatchedPerSecond = EggsHatchedPerSecond + amount
+                -- Smart Save check
+                if not SmartSave.isSafeToSpend() then
+                    task.wait(1)
+                else
+                    -- Track successful hatches for speedometer
+                    local success = pcall(function() 
+                        hatchRemote:InvokeServer(eggName, amount, {}) 
+                    end)
+                    
+                    if success then
+                        EggsHatchedPerSecond = EggsHatchedPerSecond + amount
+                    end
+                    
+                    task.wait(_G.Settings.HatchDelay or 0.5)
                 end
-                
-                task.wait(_G.Settings.HatchDelay or 0.5)
             end
             _isRunning = false
         end)
@@ -645,7 +961,7 @@ local Tabs = {
 }
 
 -- ============================================
--- MAIN TAB (Farm, Rebirth, Rewards)
+-- MAIN TAB
 -- ============================================
 Tabs.Main:AddParagraph({ Title = "Auto Farm", Content = "Super fast clicking" })
 
@@ -707,21 +1023,8 @@ Tabs.Main:AddToggle("AutoRankReward", {
     Fluent:Notify({ Title = "Auto Rank Reward", Content = value and "Enabled - claiming now!" or "Disabled", Duration = 2 })
 end)
 
-Tabs.Main:AddButton({
-    Title = "Claim Rank Reward Now",
-    Description = "Manually attempt to claim rank reward",
-    Callback = function()
-        local success = Rewards.claimRankReward()
-        Fluent:Notify({
-            Title = "Rank Reward",
-            Content = success and "Attempted to claim!" or "Failed to claim",
-            Duration = 2
-        })
-    end
-})
-
 -- ============================================
--- EGGS TAB (Hatching, Speed, Selection)
+-- EGGS TAB
 -- ============================================
 
 -- Discover eggs on load
@@ -729,6 +1032,56 @@ local discoveredEggList = Eggs.discoverEggs()
 if #discoveredEggList == 0 then
     discoveredEggList = {"Basic", "Space", "Starry", "Magma"} -- Fallback
 end
+
+Tabs.Eggs:AddParagraph({ Title = "Pets", Content = "Auto equip strongest pets" })
+
+Tabs.Eggs:AddToggle("AutoEquip", {
+    Title = "Auto Equip Best",
+    Description = "Auto equip strongest pets every 5 seconds",
+    Default = false
+}):OnChanged(function(value)
+    Pets.toggle(value)
+    Fluent:Notify({ Title = "Auto Equip", Content = value and "Enabled" or "Disabled", Duration = 2 })
+end)
+
+Tabs.Eggs:AddParagraph({ Title = "Auto Delete", Content = "Delete trash pets by rarity" })
+
+Tabs.Eggs:AddToggle("AutoDelete", {
+    Title = "Auto Delete",
+    Description = "Enable pet deletion",
+    Default = false
+}):OnChanged(function(value)
+    _G.DeleteSettings.Enabled = value
+    Fluent:Notify({ 
+        Title = "Auto Delete", 
+        Content = value and "ENABLED - Deleting trash!" or "Disabled", 
+        Duration = 3 
+    })
+end)
+
+Tabs.Eggs:AddDropdown("DeleteRarity", {
+    Title = "Delete Rarities",
+    Description = "Select rarities to delete",
+    Values = AutoDelete.RarityList,
+    Multi = true,
+    Default = {}
+}):OnChanged(function(value)
+    _G.DeleteSettings.SelectedRarities = value
+end)
+
+Tabs.Eggs:AddToggle("KeepGolden", {
+    Title = "Keep Golden",
+    Default = true
+}):OnChanged(function(value)
+    _G.DeleteSettings.KeepGolden = value
+end)
+
+Tabs.Eggs:AddToggle("KeepRainbow", {
+    Title = "Keep Rainbow",
+    Default = true
+}):OnChanged(function(value)
+    _G.DeleteSettings.KeepRainbow = value
+end)
 
 Tabs.Eggs:AddParagraph({ Title = "Auto Egg Hatch", Content = "Select egg and amount to auto hatch" })
 
@@ -770,21 +1123,6 @@ Tabs.Eggs:AddSlider("HatchDelay", {
 })
 
 Tabs.Eggs:AddButton({
-    Title = "Hatch Once",
-    Description = "Hatch selected egg once",
-    Callback = function()
-        local eggName = _G.Settings.TargetEgg or "Basic"
-        local amount = _G.Settings.HatchAmount or 1
-        local success = Eggs.hatch(eggName, amount)
-        Fluent:Notify({
-            Title = "Hatch",
-            Content = success and ("Hatched " .. tostring(amount) .. "x " .. eggName) or "Failed to hatch",
-            Duration = 2
-        })
-    end
-})
-
-Tabs.Eggs:AddButton({
     Title = "Rescan Eggs",
     Description = "Re-discover available eggs",
     Callback = function()
@@ -822,7 +1160,7 @@ task.spawn(function()
 end)
 
 -- ============================================
--- ISLANDS TAB (Unlock, GPS Teleport)
+-- ISLANDS TAB
 -- ============================================
 Tabs.Islands:AddParagraph({ Title = "Island Unlock", Content = "Auto-discover and unlock all islands" })
 
@@ -833,6 +1171,24 @@ Tabs.Islands:AddToggle("AutoIsland", {
 }):OnChanged(function(value)
     Islands.toggle(value)
     Fluent:Notify({ Title = "Auto Islands", Content = value and "Enabled" or "Disabled", Duration = 2 })
+end)
+
+Tabs.Islands:AddToggle("SmartSave", {
+    Title = "Smart Save",
+    Description = "Stop hatching at 90% of island price",
+    Default = false
+}):OnChanged(function(value)
+    _G.SmartSave.Enabled = value
+    Fluent:Notify({ Title = "Smart Save", Content = value and "Saving for island!" or "Disabled", Duration = 2 })
+end)
+
+Tabs.Islands:AddToggle("AutoBestIsland", {
+    Title = "Auto Best Island",
+    Description = "Teleport to highest unlocked island (every 10s)",
+    Default = false
+}):OnChanged(function(value)
+    AutoBestIsland.toggle(value)
+    Fluent:Notify({ Title = "Auto Best Island", Content = value and "Enabled" or "Disabled", Duration = 2 })
 end)
 
 Tabs.Islands:AddButton({
@@ -859,8 +1215,8 @@ Tabs.Islands:AddButton({
     end
 })
 
--- Teleport Section (GPS Mode)
-Tabs.Islands:AddParagraph({ Title = "GPS Teleport", Content = "Instant teleport to any island (16 locations)" })
+-- Teleport Section
+Tabs.Islands:AddParagraph({ Title = "Teleport", Content = "Teleport to any island" })
 
 -- Use coordinate database for dropdown
 local islandList = Islands.getLocationList()
@@ -892,7 +1248,7 @@ Tabs.Islands:AddButton({
 })
 
 -- ============================================
--- UPGRADES TAB (Stats, Jump)
+-- UPGRADES TAB
 -- ============================================
 Tabs.Upgrades:AddParagraph({ Title = "Auto Upgrades", Content = "Automatically purchase stat upgrades" })
 
