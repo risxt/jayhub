@@ -321,45 +321,12 @@ do
     end
 end
 
--- [[ EGGS MODULE (SMART AUTO-DETECT) ]]
+-- [[ EGGS MODULE (MANUAL SELECTION) ]]
 local Eggs = {}
 do
     local _eggThread = nil
     local _isRunning = false
     local _discoveredEggs = {}
-    local _currentMaxHatch = 1
-    local _replication = nil
-    
-    -- Try to load Replication for gamepass detection
-    pcall(function()
-        _replication = require(game:GetService("ReplicatedStorage").Game.Replication)
-    end)
-    
-    -- Smart Detect: Read gamepasses to determine max hatch amount
-    function Eggs.detectMaxHatch()
-        local bestAmount = 1
-        
-        if _replication and _replication.Data and _replication.Data.Gamepasses then
-            for id, owned in pairs(_replication.Data.Gamepasses) do
-                if owned then
-                    local key = tostring(id):lower()
-                    
-                    -- Check for +8 (Octuple)
-                    if key:find("8") or key:find("oct") or key:find("eight") then
-                        return 8
-                    end
-                    
-                    -- Check for +3 (Triple)
-                    if key:find("3") or key:find("trip") then
-                        bestAmount = 3
-                    end
-                end
-            end
-        end
-        
-        print("[TapSim] Smart Hatch Detected: " .. bestAmount .. " Eggs at once")
-        return bestAmount
-    end
     
     function Eggs.discoverEggs()
         _discoveredEggs = {}
@@ -403,9 +370,6 @@ do
         if _isRunning then return end
         _isRunning = true
         
-        -- Auto Detect Amount once at start
-        _currentMaxHatch = Eggs.detectMaxHatch()
-        
         _eggThread = task.spawn(function()
             local hatchRemote = Remotes.getFunction(Remotes.INDEX.EGG_HATCH)
             
@@ -417,7 +381,7 @@ do
             
             while _isRunning and _G.Settings.AutoHatch do
                 local eggName = _G.Settings.TargetEgg or "Basic"
-                local amount = _currentMaxHatch
+                local amount = _G.Settings.HatchAmount or 1
                 
                 pcall(function()
                     hatchRemote:InvokeServer(eggName, amount, {})
@@ -445,14 +409,11 @@ do
         if enabled then Eggs.start() else Eggs.stop() end
     end
     
-    function Eggs.getSpeed()
-        return _currentMaxHatch or 1
-    end
-    
     function Eggs.isRunning()
         return _isRunning
     end
 end
+
 
 -- [[ ISLANDS MODULE ]]
 
@@ -1768,7 +1729,14 @@ EggDropdown:OnChanged(function(value)
     _G.Settings.TargetEgg = value
 end)
 
--- Note: HatchAmount now auto-detected from Gamepasses (Smart Detect)
+Tabs.Pets:AddDropdown("HatchAmount", {
+    Title = "Hatch Mode",
+    Description = "How many eggs to hatch at once",
+    Values = {"1", "3", "8"},
+    Default = "1"
+}):OnChanged(function(value)
+    _G.Settings.HatchAmount = tonumber(value)
+end)
 
 
 Tabs.Pets:AddToggle("AutoHatch", {
