@@ -1653,11 +1653,9 @@ Tabs.Main:AddToggle("AutoFarm", {
     Farm.toggle(value)
 end)
 
-Tabs.Main:AddSlider("FarmDelay", {
-    Title = "Click Delay",
-    Default = 0.01, Min = 0.001, Max = 0.1, Rounding = 3,
-    Callback = function(v) _G.Settings.FarmDelay = v end
-})
+-- FarmDelay fixed at fastest
+_G.Settings.FarmDelay = 0.001
+
 
 Tabs.Main:AddParagraph({ Title = "Rebirths", Content = "" })
 
@@ -1747,11 +1745,9 @@ Tabs.Pets:AddToggle("AutoHatch", {
     Eggs.toggle(value)
 end)
 
-Tabs.Pets:AddSlider("HatchDelay", {
-    Title = "Hatch Delay",
-    Default = 0.5, Min = 0.1, Max = 2, Rounding = 1,
-    Callback = function(v) _G.Settings.HatchDelay = v end
-})
+-- HatchDelay fixed at fastest speed (0.1s)
+_G.Settings.HatchDelay = 0.1
+
 
 Tabs.Pets:AddButton({
     Title = "Rescan Eggs",
@@ -1907,11 +1903,9 @@ Tabs.Upgrades:AddToggle("AutoJump", {
     Upgrades.toggleJump(value)
 end)
 
-Tabs.Upgrades:AddSlider("UpgradeDelay", {
-    Title = "Interval",
-    Default = 3, Min = 1, Max = 30, Rounding = 0,
-    Callback = function(v) _G.Settings.UpgradeDelay = v end
-})
+-- UpgradeDelay fixed at fastest
+_G.Settings.UpgradeDelay = 1
+
 
 -- MERCHANT TAB (DUAL SHOP EDITION)
 -- ============================================
