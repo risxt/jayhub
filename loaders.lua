@@ -2023,6 +2023,7 @@ Tabs.Main:AddToggle("SafeModeFarm", {
     end
 end)
 
+task.wait(0.05) -- LAZY LOAD: Distribute render
 Tabs.Main:AddParagraph({ Title = "Rebirths", Content = "" })
 Tabs.Main:AddToggle("AutoRebirth", {Title = "Auto Rebirth", Default = false}):OnChanged(function(v) Rebirth.toggle(v) end)
 Tabs.Main:AddSlider("NabungTime", {Title = "Cooldown", Default = 25, Min = 10, Max = 120, Rounding = 0, Callback = function(v) _G.Settings.NabungTime = v end})
@@ -2032,6 +2033,7 @@ Tabs.Main:AddParagraph({ Title = "Rank", Content = "" })
 Tabs.Main:AddToggle("AutoRankReward", {Title = "Auto Claim Rank", Default = false}):OnChanged(function(v) Rewards.toggle(v) end)
 
 -- IMPROVED V3.2: Electric Wheel (Ghost Event)
+task.wait(0.05) -- LAZY LOAD: Distribute render
 Tabs.Main:AddParagraph({ Title = "Electric Wheel", Content = "Hidden event - remote masih aktif" })
 Tabs.Main:AddToggle("AutoElectricWheel", {
     Title = "Auto Spin Electric",
@@ -2053,6 +2055,7 @@ Tabs.Main:AddSlider("ElectricSpinDelay", {
 })
 
 -- IMPROVED V3.2: Lucky Block Auto-Farm
+task.wait(0.05) -- LAZY LOAD: Distribute render
 Tabs.Main:AddParagraph({ Title = "Lucky Block", Content = "Auto-collect falling & placed blocks" })
 Tabs.Main:AddToggle("AutoLuckyBlock", {
     Title = "Auto Farm Lucky Blocks",
@@ -2147,6 +2150,7 @@ task.spawn(function()
 end)
 
 -- [FIX 3] PETS TAB (No manual HatchAmount dropdown)
+task.wait(0.1) -- LAZY LOAD: Prevent freeze
 local discoveredEggList = Eggs.discoverEggs()
 if #discoveredEggList == 0 then discoveredEggList = {"Basic", "Space", "Starry", "Magma"} end
 Tabs.Pets:AddParagraph({ Title = "Hatching (Smart Detect)", Content = "Auto detects x8/x3 gamepass" })
@@ -2261,6 +2265,7 @@ Tabs.Pets:AddToggle("AutoGolden", {Title = "Auto Gold Craft", Default = false}):
 Tabs.Pets:AddToggle("AutoRainbow", {Title = "Auto Rainbow Craft", Default = false}):OnChanged(function(v) AutoCraft.toggleRainbow(v) end)
 
 -- ISLANDS TAB
+task.wait(0.1) -- LAZY LOAD: Prevent freeze
 Tabs.Islands:AddParagraph({ Title = "Islands", Content = "" })
 Tabs.Islands:AddToggle("AutoIsland", {Title = "Auto Unlock", Default = false}):OnChanged(function(v) Islands.toggle(v) end)
 Tabs.Islands:AddToggle("AutoBestIsland", {Title = "Auto Go Best", Default = false}):OnChanged(function(v) AutoBestIsland.toggle(v) end)
@@ -2305,6 +2310,7 @@ Tabs.Merchant:AddDropdown("GemMerchantItem", {Title = "Items", Values = Merchant
 Tabs.Merchant:AddToggle("AutoBuyGemMerchant", {Title = "Auto Buy Gem", Default = false}):OnChanged(function(v) Merchant.toggleGemBuy(v) end)
 
 -- WEBHOOK TAB
+task.wait(0.1) -- LAZY LOAD: Prevent freeze
 Tabs.Webhook:AddToggle("WebhookEnabled", {Title = "Enable", Default = false}):OnChanged(function(v) Webhook.toggle(v) end)
 
 -- IMPROVED V3.2: Webhook URL with validation
@@ -2321,6 +2327,7 @@ Tabs.Webhook:AddInput("WebhookUrl", {
 Tabs.Webhook:AddDropdown("WebhookRarity", {Title = "Min Rarity", Values = {"Rare","Epic","Legendary","Mythic","Secret"}, Default = "Legendary"}):OnChanged(function(v) Webhook.setRarity(v) end)
 
 -- PERFORMANCE TAB
+task.wait(0.1) -- LAZY LOAD: Prevent freeze
 local BlackGui = Instance.new("ScreenGui", Player.PlayerGui)
 BlackGui.Name = "BlackScreenOverlay"
 BlackGui.IgnoreGuiInset = true
