@@ -669,7 +669,8 @@ do
         ["Atlantis"] = CFrame.new(-432, 12950, 266), ["Space"] = CFrame.new(-278, 15334, 440),
         ["World 2"] = CFrame.new(1279, 651, -13267), ["Kryo"] = CFrame.new(1387, 1741, -13233),
         ["Magma"] = CFrame.new(1430, 3120, -12970), ["Celestial"] = CFrame.new(1260, 4164, -12939),
-        ["Holographic"] = CFrame.new(1427, 5354, -12718), ["Lunar"] = CFrame.new(1472, 6855, -12914)
+        ["Holographic"] = CFrame.new(1427, 5354, -12718), ["Lunar"] = CFrame.new(1472, 6855, -12914),
+        ["Lucky Event"] = CFrame.new(-177.407364, 214.149719, 234.651199, 0.0380607843, -7.83694603e-08, 0.999275446, -5.23740029e-09, 1, 7.86257743e-08, -0.999275446, -8.22616375e-09, 0.0380607843)
     }
     function Islands.getLocationList() local n = {} for k,_ in pairs(Islands.Locations) do table.insert(n,k) end table.sort(n) return n end
     function Islands.discoverIslands()
