@@ -2153,7 +2153,7 @@ end)
 -- [FIX 3] PETS TAB (No manual HatchAmount dropdown)
 task.wait(0.1) -- LAZY LOAD: Prevent freeze
 local discoveredEggList = Eggs.discoverEggs()
-if #discoveredEggList == 0 then discoveredEggList = {"Basic", "Space", "Starry", "Magma"} end
+if #discoveredEggList == 0 then discoveredEggList = {"Basic", "Space", "Starry", "Magma", "Lucky Event"} end
 Tabs.Pets:AddParagraph({ Title = "Hatching (Smart Detect)", Content = "Auto detects x8/x3 gamepass" })
 local EggDropdown = Tabs.Pets:AddDropdown("TargetEgg", {Title = "Select Egg", Values = discoveredEggList, Default = 1})
 EggDropdown:OnChanged(function(v) _G.Settings.TargetEgg = v end)
