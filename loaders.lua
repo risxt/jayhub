@@ -2395,7 +2395,7 @@ SaveManager:SetFolder("TapSimHub/configs")
 -- IMPROVED V3.2: Expanded Config Save
 -- Note: Custom OnSave/OnLoad removed - SaveManager doesn't support these hooks
 -- Global settings are stored in _G tables and persist during session
-SaveManager:SetIgnoreIndexes({"TeleportIsland"}) -- Don't save dynamic selections
+-- SaveManager:SetIgnoreIndexes({}) -- All elements saved now
 
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 SaveManager:BuildConfigSection(Tabs.Settings)
