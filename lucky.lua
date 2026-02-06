@@ -74,8 +74,8 @@ do
         _discoveredEggs = {}
         local Workspace = game:GetService("Workspace")
         
-        -- Check Eggs folder
-        for _, folderName in pairs({"Eggs", "RobuxEggs"}) do
+        -- Check all egg folders including Lucky Event
+        for _, folderName in pairs({"Eggs", "RobuxEggs", "LuckyEggs", "EventEggs", "LuckyEventEggs"}) do
             local folder = Workspace:FindFirstChild(folderName)
             if folder then
                 for _, egg in pairs(folder:GetChildren()) do
@@ -85,6 +85,29 @@ do
                         end
                     end
                 end
+            end
+        end
+        
+        -- Also check for eggs in Zones/LuckyEvent area
+        local Zones = Workspace:FindFirstChild("Zones")
+        if Zones then
+            local LuckyZone = Zones:FindFirstChild("LuckyEvent") or Zones:FindFirstChild("Lucky Event")
+            if LuckyZone then
+                for _, child in pairs(LuckyZone:GetDescendants()) do
+                    if child:IsA("Model") and string.find(child.Name:lower(), "egg") then
+                        if not table.find(_discoveredEggs, child.Name) then
+                            table.insert(_discoveredEggs, child.Name)
+                        end
+                    end
+                end
+            end
+        end
+        
+        -- Hardcode Lucky Event eggs jika tidak ditemukan
+        local luckyEggs = {"Lucky Egg", "Super Lucky Egg", "Mega Lucky Egg", "Ultra Lucky Egg", "Shamrock Egg", "Clover Egg", "Rainbow Egg"}
+        for _, eggName in pairs(luckyEggs) do
+            if not table.find(_discoveredEggs, eggName) then
+                table.insert(_discoveredEggs, eggName)
             end
         end
         
