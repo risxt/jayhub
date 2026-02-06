@@ -20,6 +20,47 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
+-- ============================================
+-- [SEC-ANTIAFK] SUPER ANTI-AFK V2
+-- ============================================
+task.spawn(function()
+    local VirtualUser = game:GetService("VirtualUser")
+    print("[ANTIAFK] Loading Aggressive Anti-AFK...")
+    
+    -- 1. Deteksi Idle (Saat Roblox mendeteksi diam 20 menit)
+    Player.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+        task.wait(0.1)
+        VirtualUser:Button2Up(Vector2.new(), workspace.CurrentCamera.CFrame)
+        print("[ANTIAFK] Idled Triggered - Resetting Timer")
+    end)
+    
+    -- 2. Pulse Loop (Memaksa input setiap 60 detik sebagai cadangan)
+    task.spawn(function()
+        while true do
+            task.wait(60)
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new())
+            end)
+        end
+    end)
+    
+    -- 3. Auto Rejoin (Jika terkena Kick/Disconnect)
+    task.spawn(function()
+        local Gui = game:GetService("CoreGui")
+        local Teleport = game:GetService("TeleportService")
+        Gui.ChildAdded:Connect(function(child)
+            if child.Name == "RobloxPromptGui" then
+                warn("[ANTIAFK] Disconnected! Rejoining in 5s...")
+                task.wait(5)
+                Teleport:Teleport(game.PlaceId, Player)
+            end
+        end)
+    end)
+end)
+
 -- Settings
 _G.LuckySettings = {
     AutoHatch = false,
