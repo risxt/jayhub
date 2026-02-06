@@ -17,15 +17,24 @@ local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local Player = Players.LocalPlayer
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 -- Settings
 _G.LuckySettings = {
     AutoHatch = false,
     AutoDelete = false,
-    TargetEgg = nil, -- Will be discovered
+    AutoCraftKeys = false,
+    AutoGacha = false,
+    TargetEgg = nil,
     HatchDelay = 0.1,
+    GachaAmount = 1,
     KeepGolden = true,
     KeepRainbow = true,
+    CraftRarities = {
+        Legendary = true,
+        Mythic = false
+    },
     SelectedRarities = {
         Common = true,
         Uncommon = true,
@@ -201,6 +210,101 @@ do
 end
 
 -- ============================================
+-- [MODULE] AUTO CRAFT KEYS
+-- ============================================
+local CraftKeys = {}
+do
+    local _craftThread = nil
+    local _isRunning = false
+    local _craftDelay = 1
+    
+    function CraftKeys.craft(rarity)
+        if Network then
+            pcall(function()
+                Network:InvokeServer("CraftLuckyBlockKey", rarity or "Legendary", "Galaxy")
+            end)
+        end
+    end
+    
+    function CraftKeys.start()
+        if _isRunning then return end
+        _isRunning = true
+        
+        _craftThread = task.spawn(function()
+            while _isRunning and _G.LuckySettings.AutoCraftKeys do
+                local rarities = _G.LuckySettings.CraftRarities or {}
+                for rarity, enabled in pairs(rarities) do
+                    if enabled then
+                        CraftKeys.craft(rarity)
+                        task.wait(_craftDelay)
+                    end
+                end
+                task.wait(0.5)
+            end
+            _isRunning = false
+        end)
+    end
+    
+    function CraftKeys.stop()
+        _isRunning = false
+        if _craftThread then
+            pcall(function() task.cancel(_craftThread) end)
+            _craftThread = nil
+        end
+    end
+    
+    function CraftKeys.toggle(enabled)
+        _G.LuckySettings.AutoCraftKeys = enabled
+        if enabled then CraftKeys.start() else CraftKeys.stop() end
+    end
+end
+
+-- ============================================
+-- [MODULE] GALAXY GACHA
+-- ============================================
+local GalaxyGacha = {}
+do
+    local _gachaThread = nil
+    local _isRunning = false
+    local _gachaDelay = 0.5
+    
+    function GalaxyGacha.open(amount)
+        if Network then
+            pcall(function()
+                Network:InvokeServer("OpenLuckyBlock", amount or 1, "Galaxy")
+            end)
+        end
+    end
+    
+    function GalaxyGacha.start()
+        if _isRunning then return end
+        _isRunning = true
+        
+        _gachaThread = task.spawn(function()
+            while _isRunning and _G.LuckySettings.AutoGacha do
+                local amount = _G.LuckySettings.GachaAmount or 1
+                GalaxyGacha.open(amount)
+                task.wait(_gachaDelay)
+            end
+            _isRunning = false
+        end)
+    end
+    
+    function GalaxyGacha.stop()
+        _isRunning = false
+        if _gachaThread then
+            pcall(function() task.cancel(_gachaThread) end)
+            _gachaThread = nil
+        end
+    end
+    
+    function GalaxyGacha.toggle(enabled)
+        _G.LuckySettings.AutoGacha = enabled
+        if enabled then GalaxyGacha.start() else GalaxyGacha.stop() end
+    end
+end
+
+-- ============================================
 -- [MODULE] TELEPORT
 -- ============================================
 local function teleportToLucky()
@@ -220,20 +324,22 @@ local Window = Fluent:CreateWindow({
     Title = "Lucky Event Hatcher",
     SubTitle = "Lightweight",
     TabWidth = 160,
-    Size = UDim2.fromOffset(420, 380),
+    Size = UDim2.fromOffset(500, 420),
     Acrylic = false,
     Theme = "Dark",
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
 local MainTab = Window:AddTab({ Title = "Main", Icon = "egg" })
+local GalaxyTab = Window:AddTab({ Title = "Galaxy", Icon = "star" })
+local KeysTab = Window:AddTab({ Title = "Keys", Icon = "key" })
 local DeleteTab = Window:AddTab({ Title = "Delete", Icon = "trash" })
 
 -- Discover eggs first
 task.wait(2)
 local eggList = Eggs.getList()
 
--- Main Tab
+-- ========== MAIN TAB ==========
 MainTab:AddButton({
     Title = "Teleport to Lucky Event",
     Callback = teleportToLucky
@@ -267,7 +373,43 @@ MainTab:AddSlider("HatchDelay", {
     _G.LuckySettings.HatchDelay = v
 end)
 
--- Delete Tab
+-- ========== GALAXY TAB ==========
+GalaxyTab:AddToggle("AutoGacha", {
+    Title = "Auto Galaxy Gacha",
+    Default = false
+}):OnChanged(function(v)
+    GalaxyGacha.toggle(v)
+    Fluent:Notify({Title="Galaxy Gacha", Content=v and "ON" or "OFF", Duration=2})
+end)
+
+GalaxyTab:AddDropdown("GachaAmount", {
+    Title = "Gacha Amount",
+    Values = {"1", "3", "10"},
+    Multi = false,
+    Default = "1"
+}):OnChanged(function(v)
+    _G.LuckySettings.GachaAmount = tonumber(v) or 1
+end)
+
+-- ========== KEYS TAB ==========
+KeysTab:AddToggle("AutoCraftKeys", {
+    Title = "Auto Craft Keys",
+    Default = false
+}):OnChanged(function(v)
+    CraftKeys.toggle(v)
+    Fluent:Notify({Title="Craft Keys", Content=v and "ON" or "OFF", Duration=2})
+end)
+
+KeysTab:AddDropdown("CraftRarities", {
+    Title = "Craft Key Rarities (Multi-Select)",
+    Values = {"Legendary", "Mythic"},
+    Multi = true,
+    Default = {"Legendary"}
+}):OnChanged(function(v)
+    _G.LuckySettings.CraftRarities = v
+end)
+
+-- ========== DELETE TAB ==========
 DeleteTab:AddToggle("AutoDelete", {
     Title = "Auto Delete",
     Default = false
@@ -286,22 +428,43 @@ DeleteTab:AddToggle("KeepRainbow", {
     Default = true
 }):OnChanged(function(v) _G.LuckySettings.KeepRainbow = v end)
 
-DeleteTab:AddParagraph({Title = "Delete Rarities:", Content = "Select which rarities to auto-delete"})
-
-for _, rarity in pairs({"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic"}) do
-    local default = (rarity == "Common" or rarity == "Uncommon")
-    DeleteTab:AddToggle("Delete"..rarity, {
-        Title = rarity,
-        Default = default
-    }):OnChanged(function(v)
-        _G.LuckySettings.SelectedRarities[rarity] = v
-    end)
-end
+DeleteTab:AddDropdown("DeleteRarities", {
+    Title = "Delete Rarities (Multi-Select)",
+    Values = {"Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic"},
+    Multi = true,
+    Default = {"Common", "Uncommon"}
+}):OnChanged(function(v)
+    -- Convert table to settings format
+    _G.LuckySettings.SelectedRarities = {
+        Common = v["Common"] or false,
+        Uncommon = v["Uncommon"] or false,
+        Rare = v["Rare"] or false,
+        Epic = v["Epic"] or false,
+        Legendary = v["Legendary"] or false,
+        Mythic = v["Mythic"] or false
+    }
+end)
 
 -- Set default egg
 if eggList[1] then
     _G.LuckySettings.TargetEgg = eggList[1]
 end
+
+-- ========== SETTINGS TAB ==========
+local SettingsTab = Window:AddTab({ Title = "Settings", Icon = "settings" })
+
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({})
+InterfaceManager:SetFolder("LuckyEventHatcher")
+SaveManager:SetFolder("LuckyEventHatcher/configs")
+
+InterfaceManager:BuildInterfaceSection(SettingsTab)
+SaveManager:BuildConfigSection(SettingsTab)
+
+-- Auto-load config if exists
+SaveManager:LoadAutoloadConfig()
 
 Fluent:Notify({Title="Lucky Event Hatcher", Content="Loaded! Select egg and start hatching.", Duration=5})
 
@@ -309,5 +472,8 @@ print("════════════════════════�
 print("  LUCKY EVENT HATCHER - LIGHTWEIGHT")
 print("  • Auto Hatch (x1/x3/x8 detected)")
 print("  • Auto Delete by Rarity")
+print("  • Auto Craft Keys (Multi-Rarity)")
+print("  • Auto Galaxy Gacha")
+print("  • Save/Load Config")
 print("  • TP to Lucky Event")
 print("═══════════════════════════════════════")
