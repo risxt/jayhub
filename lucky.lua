@@ -311,7 +311,6 @@ local function teleportToLucky()
     local char = Player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         char.HumanoidRootPart.CFrame = LuckyEventCFrame
-        Fluent:Notify({Title="Teleported", Content="Lucky Event", Duration=2})
         return true
     end
     return false
@@ -352,7 +351,6 @@ MainTab:AddDropdown("EggSelect", {
     Default = eggList[1] or "Basic"
 }):OnChanged(function(v)
     _G.LuckySettings.TargetEgg = v
-    Fluent:Notify({Title="Egg Selected", Content=v, Duration=2})
 end)
 
 MainTab:AddToggle("AutoHatch", {
@@ -360,7 +358,6 @@ MainTab:AddToggle("AutoHatch", {
     Default = false
 }):OnChanged(function(v)
     Eggs.toggle(v)
-    Fluent:Notify({Title="Auto Hatch", Content=v and "ON" or "OFF", Duration=2})
 end)
 
 MainTab:AddSlider("HatchDelay", {
@@ -379,7 +376,6 @@ GalaxyTab:AddToggle("AutoGacha", {
     Default = false
 }):OnChanged(function(v)
     GalaxyGacha.toggle(v)
-    Fluent:Notify({Title="Galaxy Gacha", Content=v and "ON" or "OFF", Duration=2})
 end)
 
 GalaxyTab:AddDropdown("GachaAmount", {
@@ -397,7 +393,6 @@ KeysTab:AddToggle("AutoCraftKeys", {
     Default = false
 }):OnChanged(function(v)
     CraftKeys.toggle(v)
-    Fluent:Notify({Title="Craft Keys", Content=v and "ON" or "OFF", Duration=2})
 end)
 
 KeysTab:AddDropdown("CraftRarities", {
@@ -415,7 +410,6 @@ DeleteTab:AddToggle("AutoDelete", {
     Default = false
 }):OnChanged(function(v)
     AutoDelete.toggle(v)
-    Fluent:Notify({Title="Auto Delete", Content=v and "ON" or "OFF", Duration=2})
 end)
 
 DeleteTab:AddToggle("KeepGolden", {
@@ -466,7 +460,7 @@ SaveManager:BuildConfigSection(SettingsTab)
 -- Auto-load config if exists
 SaveManager:LoadAutoloadConfig()
 
-Fluent:Notify({Title="Lucky Event Hatcher", Content="Loaded! Select egg and start hatching.", Duration=5})
+
 
 print("═══════════════════════════════════════")
 print("  LUCKY EVENT HATCHER - LIGHTWEIGHT")
