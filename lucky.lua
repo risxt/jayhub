@@ -483,7 +483,72 @@ SaveManager:BuildConfigSection(SettingsTab)
 -- Auto-load config if exists
 SaveManager:LoadAutoloadConfig()
 
+-- ============================================
+-- MOBILE DRAG BUTTON
+-- ============================================
+local MobileButton = Instance.new("ScreenGui")
+MobileButton.Name = "LuckyMobileBtn"
+MobileButton.ResetOnSpawn = false
+MobileButton.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+MobileButton.Parent = game:GetService("CoreGui")
 
+local DragButton = Instance.new("ImageButton")
+DragButton.Name = "DragBtn"
+DragButton.Size = UDim2.new(0, 50, 0, 50)
+DragButton.Position = UDim2.new(0, 10, 0.5, -25)
+DragButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+DragButton.BackgroundTransparency = 0.2
+DragButton.Image = "rbxassetid://6031075938" -- Clover/Lucky icon
+DragButton.ImageColor3 = Color3.fromRGB(0, 255, 100)
+DragButton.BorderSizePixel = 0
+DragButton.Parent = MobileButton
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0.5, 0)
+Corner.Parent = DragButton
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(0, 200, 80)
+Stroke.Thickness = 2
+Stroke.Parent = DragButton
+
+-- Draggable logic
+local UserInputService = game:GetService("UserInputService")
+local dragging, dragInput, dragStart, startPos
+
+DragButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = DragButton.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+DragButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        DragButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Toggle window on tap
+local windowVisible = true
+DragButton.MouseButton1Click:Connect(function()
+    windowVisible = not windowVisible
+    Window:Minimize()
+end)
 
 print("═══════════════════════════════════════")
 print("  LUCKY EVENT HATCHER - LIGHTWEIGHT")
@@ -492,5 +557,6 @@ print("  • Auto Delete by Rarity")
 print("  • Auto Craft Keys (Multi-Rarity)")
 print("  • Auto Galaxy Gacha")
 print("  • Save/Load Config")
+print("  • Mobile Drag Button")
 print("  • TP to Lucky Event")
 print("═══════════════════════════════════════")
